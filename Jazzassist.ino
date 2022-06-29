@@ -1,12 +1,12 @@
 #include <Wire.h> 
-#include <LiquidCrystal_I2C.h>
+#include <LiquidCrystal_I2C.h>`
 
 LiquidCrystal_I2C lcd(0x27,20,4);  //LCD address
 
 //remember commas. 
 char *chordChanges[] = {
-  "(Cn+6+9)---(Cn+6+9)---(Dn+7b5)---(Dn+7b5)---(dn+7)---(Gn+7)---(Cn+6+9)---(Cn+6+9)---(Fn+6)---(Fn+6)---(Fn+6)---(Fn+6)---(Dn+7)---(Dn+7)---(dn+7)---(Gn+7)-(Gn+7b9)-", 
-  "(dn+7)-(Gn+7)-(DnM7)---(bb00)---(an+7)---(Dn+7b9)---(GnM7)---(gn+6)---(F#+6)-(F#+7#5)-(Bn+9)-(Bn+7b9)-(En+4+9)-(En+9)-(Bn+9)-(An+7#5)-(dn+9)-(Gn+6)-(dn+9)---", 
+  "(Cn+6+9)---(Cn+6+9)---(Dn+7b5)---(Dn+7b5)---(dn+7)---(Gn+7)---(Cn+6+9)---(Cn+6+9)---(Fn+6)---(Fn+6)---(Fn+6)---(Fn+6)---(Dn+7)---(Dn+7)---(dn+7)---(Gn+7)-(Gn+7b9)-",
+  "(dn+7)-(Gn+7)-(DnM7)---(a#00)---(an+7)---(Dn+7b9)---(GnM7)---(gn+6)---(F#+6)-(F#+7#5)-(Bn+9)-(Bn+7b9)-(En+4+9)-(En+9)-(Bn+9)-(An+7#5)-(dn+9)-(Gn+6)-(dn+9)---", 
   "chord 3"
 };
 
@@ -34,6 +34,16 @@ char *by[] = {
   "Herbie Hancock"
 };
 
+int lydian[] = {0,2,4,6,7,9,11,12};
+int dorian[] = {0,2,3,5,7,9,10,12};
+int altered[] = {0,1,3,4,6,8,10,12};
+int mixolydian[] = {0,2,4,5,7,9,10,12};
+int diminished[] = {0,1,3,4,6,7,9,10,12};
+int whole[] = {0,2,4,6,8,10,12};
+int melodicMin[] = {0,2,3,5,7,9,11,12};
+
+String mode = "chordal";
+
 int INbuttonPinInput = 13;
 int OUTbuttonPinInput = 12;
 
@@ -53,7 +63,7 @@ int initialscrollerValue = 0;
 
 void setup() {
   Serial.begin(9600);
-
+  
   lcd.init(); // initialize the lcd 
   lcd.init();
 
@@ -129,7 +139,7 @@ int rootCodeFn(String chord) {
 }
 
 //removed [A] tag feature
-void playSong(int ID, float beatsperminute) {
+void playSongChordal(int ID, float beatsperminute) {
   float delayPerBeat = 60.00 / beatsperminute;//division, so FLOAT arithmmatic
   delayPerBeat = delayPerBeat*1000;
   
@@ -266,6 +276,131 @@ void playSong(int ID, float beatsperminute) {
   interface("out");
 }
 
+void playSongModal(int ID, float beatsperminute) {
+  float delayPerBeat = 60.00 / beatsperminute;//division, so FLOAT arithmmatic
+  delayPerBeat = delayPerBeat*1000;
+  
+  int songID = ID;
+  String chordList = chordChanges[songID];
+  String thisChar;
+  int beat = 1;
+  
+  //represents the location of the "(" symbol for chords. First one is at 0. 
+  int begMarker = 3;
+  int endMarker = 0;
+
+  //repeats for every element in the song string. 
+  for (int i=0;i<chordList.length();i++) {
+    
+    if (beat > 4) {
+      beat = 1;
+    }
+    
+    thisChar = chordList.substring(i, i+1);
+    
+    if (thisChar==")") {
+
+      endMarker = i;
+      String thisChord = chordList.substring(begMarker+1, endMarker); //end not inclusive. (discard parentheses). beginning is inclusive. 
+
+      displayCentered("Chord: " + thisChord, 1);
+      
+      int rootCode = rootCodeFn(thisChord);
+
+      int numoftags = (thisChord.length()-2)/2;
+
+      String firstNtUpperCase = thisChord.substring(0,1);
+      firstNtUpperCase.toUpperCase();
+
+      String firstNt = thisChord.substring(0,1);
+      String firstChordTag = thisChord.substring(2,4);
+
+      int listLength;
+      int* ptrScaleMatrix;
+        
+      //if lowercase...
+      if (firstNt != firstNtUpperCase) {
+         //lowercase (minor)
+         if (firstChordTag=="00") {
+          ptrScaleMatrix = &diminished[0]; //diminished
+          listLength = 9;
+         } else if (firstChordTag=="+6") {
+          ptrScaleMatrix = &melodicMin[0]; //melodic minor
+          listLength = 8;
+         } else {//if it's not diminished or min6, then just make it a dorian scale. This includes minor seven chords. (dn+7) for example.
+          ptrScaleMatrix = &dorian[0]; //dorian
+          listLength = 8;
+         }
+         
+      } else {
+         //upper (major)
+        if (firstChordTag=="au") {
+          ptrScaleMatrix = &whole[0];//whole tone
+          listLength = 7;
+        } else if (firstChordTag=="+7") {
+          if (numoftags == 1) {
+            ptrScaleMatrix = &mixolydian[0]; //mixolydian
+            listLength = 8;
+          } else {
+            ptrScaleMatrix = &altered[0]; //altered
+            listLength = 8;
+          }
+        } else {//if it's not dominant or augmented, then we'll just use lydian
+          ptrScaleMatrix = &lydian[0];//lydian
+          listLength = 8;
+        }
+        
+      }
+
+      //writing to the lasers!
+      for (int z=0; z < listLength; z++) {
+        int noteCode = rootCode + *(ptrScaleMatrix+z); //getting the array through pointer
+        
+        if (noteCode>12) {
+          noteCode = noteCode-12;
+        }
+
+        digitalWrite(noteCode+26, HIGH);
+
+        if (noteCode==12) {//if the c is in there somewhere, then make sure to hit the lower one (which is disfavored unless you're a c scale)
+          digitalWrite(26, HIGH);
+        }
+      }
+
+      displayCentered("Beat: " + String(beat), 2);
+      beat++;
+      delay(delayPerBeat);
+      
+      
+    } else if (thisChar=="(") {
+      begMarker = i;
+      lcd.clear();
+      
+      //clear the lasers. 
+      turnOffLasers();
+
+    } else if (thisChar=="-") {
+      displayCentered("Beat: " + String(beat), 2);
+      beat++;
+      delay(delayPerBeat);
+    }
+    
+  }
+
+  //when song is done. 
+  turnOffLasers();
+  lcd.clear();
+
+  displayCentered("Song complete.", 1);
+  
+  while (digitalRead(OUTbuttonPinInput)==LOW) {
+        //nothing. 
+  }
+      
+  interfaceZ = 0;
+  interface("out");
+}
+
 void turnOffLasers() {
   for (int b=0; b<13; b++) {
      digitalWrite(26+b, LOW);
@@ -278,7 +413,12 @@ void interface(String action) {
     interfaceZ = interfaceZ + 1;
     if (interfaceZ==3) {
       Serial.println("This is getting sent: " + String(potentialBPM));
-      playSong(potentialSongID, potentialBPM);
+      
+      if (mode == "chordal") {
+        playSongChordal(potentialSongID, potentialBPM);
+      } else if (mode == "modal") {
+        playSongModal(potentialSongID, potentialBPM);
+      }
     }
     
     initialscrollerValue = analogRead(dialPinInput);
